@@ -13,6 +13,8 @@ public class OpenDetails {
     private final UUID restoreUser;
     private final String name;
     private final String search;
+    // opened with /axir request, only viewing and discord requests are allowed
+    private boolean requestOnly = false;
 
     public OpenDetails(OpenMethod openMethod, UUID restoreUser, String name, String search) {
         this.openMethod = openMethod;
@@ -26,6 +28,15 @@ public class OpenDetails {
             case PLAYER -> name;
             case SEARCH -> search;
         };
+    }
+
+    public boolean isRequestOnly() {
+        return requestOnly;
+    }
+
+    public OpenDetails requestOnly() {
+        this.requestOnly = true;
+        return this;
     }
 
     public void loadBackup(Backup backup) {

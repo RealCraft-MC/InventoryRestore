@@ -1,5 +1,6 @@
 package com.artillexstudios.axinventoryrestore.commands;
 
+import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.CancelPending;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Cleanup;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Help;
@@ -17,6 +18,8 @@ import revxrsal.commands.annotation.Command;
 import revxrsal.commands.annotation.DefaultFor;
 import revxrsal.commands.annotation.Subcommand;
 import revxrsal.commands.bukkit.annotation.CommandPermission;
+
+import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.MESSAGEUTILS;
 
 @Command({"axinventoryrestore", "axir", "axinvrestore", "invrestore", "inventoryrestore"})
 public class Commands {
@@ -61,6 +64,17 @@ public class Commands {
     @CommandPermission("axinventoryrestore.search")
     public void search(Player sender, String search) {
         Search.INSTANCE.execute(sender, search);
+    }
+
+    @Subcommand("request")
+    @CommandPermission("axinventoryrestore.discord-request")
+    @AutoComplete("@offlinePlayers")
+    public void request(Player sender, String player) {
+        if (AxInventoryRestore.getDiscordAddon() == null) {
+            MESSAGEUTILS.sendLang(sender, "errors.discord-disabled");
+            return;
+        }
+        View.INSTANCE.execute(sender, player, true);
     }
 
     @Subcommand("pending")

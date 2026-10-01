@@ -29,9 +29,12 @@ Fork for the RealCraft network (multiple Paper backends behind a proxy, sharing 
 - `%target-server%` placeholder in `prompt` (new field 6).
 - `messages.restored` moved to `messages.yml` (`restored`).
 
-**messages.yml**: `restored`, `restore-queued`, `errors.restore-queue-failed`, `pending.*`, `cancelpending.*`, `categories.RESTORE_OVERWRITE`.
+**messages.yml**: `restored`, `restore-queued`, `errors.restore-queue-failed`, `errors.discord-disabled`, `pending.*`, `cancelpending.*`, `categories.RESTORE_OVERWRITE`.
 
-**Commands** (permission `axinventoryrestore.restore`)
+**Commands**
+- `/axir request <player>` (permission `axinventoryrestore.discord-request`): opens the backups of a player in request-only mode. Staff can browse the backups and send a Discord restore request, but cannot restore, teleport, export or take items, and don't need `axinventoryrestore.view`. Only works on a server with the Discord addon enabled.
+
+Permission `axinventoryrestore.restore`:
 - `/axir pending <player>`: list pending restore requests (id, backup date, category, accepted, target server).
 - `/axir cancelpending <id>`: remove a pending restore request.
 

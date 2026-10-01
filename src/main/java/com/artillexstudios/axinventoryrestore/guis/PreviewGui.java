@@ -58,7 +58,7 @@ public class PreviewGui {
                 if (it.getType().isAir()) continue;
 
                 previewGui.setItem(n, new GuiItem(it, event -> {
-                    if (!viewer.hasPermission("axinventoryrestore.modify")) {
+                    if (details.isRequestOnly() || !viewer.hasPermission("axinventoryrestore.modify")) {
                         event.setCancelled(true);
                         return;
                     }
@@ -75,6 +75,13 @@ public class PreviewGui {
                 lastGui.open(viewer, pageNum);
                 event.setCancelled(true);
             }));
+
+            // opened with /axir request: only allow looking at the items and sending a discord request
+            if (details.isRequestOnly()) {
+                if (discordAddon != null) setRequestButton(starter + 8, discordAddon);
+                previewGui.update();
+                return;
+            }
 
             previewGui.setItem(starter + 2, new GuiItem(ItemBuilder.create(LANG.getSection("guis.previewgui.teleport"), Map.of("%location%", backupData.getLocation().getReadable())).get(), event -> {
                 event.setCancelled(true);
@@ -135,26 +142,30 @@ public class PreviewGui {
                 previewGui.update();
             });
 
-            if (discordAddon != null) {
-                previewGui.setItem(starter + 8, new GuiItem(discordAddon.getRequestItem(), event -> {
-                    event.setCancelled(true);
-
-                    if (!viewer.hasPermission("axinventoryrestore.discord-request")) {
-                        MESSAGEUTILS.sendLang(viewer, "errors.no-permission");
-                        return;
-                    }
-
-                    discordAddon.sendRequest((Player) event.getWhoClicked(), backupData).thenAccept(success -> {
-                        MESSAGEUTILS.sendLang(viewer, "discord-request." + (success ? "success" : "failure"));
-                    });
-                }));
-            }
+            if (discordAddon != null) setRequestButton(starter + 8, discordAddon);
 
             previewGui.update();
         });
 
         previewGui.open(viewer);
         if (AxInventoryRestore.isDebugMode()) LogUtils.debug("Preview gui opened for {} in {}ms", viewer.getName(), System.currentTimeMillis() - time);
+    }
+
+    private void setRequestButton(int slot, DiscordAddon discordAddon) {
+        previewGui.setItem(slot, new GuiItem(discordAddon.getRequestItem(), event -> {
+            event.setCancelled(true);
+
+            if (!viewer.hasPermission("axinventoryrestore.discord-request")) {
+                MESSAGEUTILS.sendLang(viewer, "errors.no-permission");
+                return;
+            }
+
+            // close the gui so the same backup isn't requested twice by accident
+            viewer.closeInventory();
+            discordAddon.sendRequest((Player) event.getWhoClicked(), backupData).thenAccept(success -> {
+                MESSAGEUTILS.sendLang(viewer, "discord-request." + (success ? "success" : "failure"));
+            });
+        }));
     }
 
     public Gui getPreviewGui() {
