@@ -7,7 +7,8 @@ import java.util.UUID;
 public class BackupLimiter {
 
     public static void tryLimit(UUID uuid, String reason, String reason2) {
-        int withReason = AxInventoryRestore.CONFIG.getInt("save-limits." + reason);
+        // categories without a configured limit (like restore-overwrite in old configs) are unlimited, not 0
+        int withReason = AxInventoryRestore.CONFIG.getInt("save-limits." + reason, -1);
         if (withReason != -1) {
             int saves = AxInventoryRestore.getDatabase().getSaves(uuid, reason2);
             int difference = withReason - saves;

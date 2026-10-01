@@ -23,6 +23,7 @@ import com.artillexstudios.axinventoryrestore.events.Webhooks;
 import com.artillexstudios.axinventoryrestore.hooks.HookManager;
 import com.artillexstudios.axinventoryrestore.libraries.Libraries;
 import com.artillexstudios.axinventoryrestore.listeners.ListenerManager;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import com.artillexstudios.axinventoryrestore.queue.PriorityThreadedQueue;
 import com.artillexstudios.axinventoryrestore.schedulers.AutoBackupScheduler;
 import com.artillexstudios.axinventoryrestore.schedulers.GuiUpdater;
@@ -108,6 +109,7 @@ public final class AxInventoryRestore extends AxPlugin {
         CommandManager.load();
         AutoBackupScheduler.start();
         GuiUpdater.start();
+        PendingRestoreService.start();
         ListenerManager.register();
 
         boolean loadDiscordAddon = CONFIG.getBoolean("enable-discord-addon", false);
@@ -126,6 +128,7 @@ public final class AxInventoryRestore extends AxPlugin {
         if (metrics != null) metrics.cancel();
         AutoBackupScheduler.stop();
         GuiUpdater.stop();
+        PendingRestoreService.stop();
         Webhooks.stop();
         threadedQueue.stop();
         database.disable();

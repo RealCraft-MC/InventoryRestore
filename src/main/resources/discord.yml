@@ -144,16 +144,22 @@ required-permission: "ADMINISTRATOR"
 create-thread: true
 thread-name: "Restore"
 
+# these roles will be pinged when a new restore request is sent, for example: ["123456789012345678"]
+# nobody else (no users, @everyone or @here) will ever be pinged by the bot
+# the role must be set to "Allow anyone to @mention this role", or the bot needs the
+# "Mention @everyone, @here and All Roles" permission, otherwise nobody gets pinged
+ping-role-ids: []
+
 messages:
   restore: "Restore"
   decline: "Decline"
-  restored: "&#FFCC00Your items have been restored to shulkers, check your inventory!"
   accepted: "Successfully accepted restore request!"
   declined: "Successfully declined restore request!"
   # the new color of the embed
   accepted-color: "#00ff00"
   declined-color: "#ff0000"
   no-permission: "You don't have permission to use this!"
+  already-handled: "This restore request has already been handled!"
 
 request-restore:
   material: BLUE_DYE
@@ -189,5 +195,9 @@ prompt:
       inline: true
       name: "Cause"
       value: "%cause%"
+    6:
+      inline: true
+      name: "Target server"
+      value: "%target-server%"
 
-version: 3
+version: 4

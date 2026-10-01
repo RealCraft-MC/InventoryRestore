@@ -4,6 +4,7 @@ import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.events.Webhooks;
 import com.artillexstudios.axinventoryrestore.hooks.HookManager;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import com.artillexstudios.axinventoryrestore.schedulers.AutoBackupScheduler;
 import com.artillexstudios.axinventoryrestore.utils.DateUtils;
 import org.bukkit.Bukkit;
@@ -42,6 +43,7 @@ public enum Reload {
         AxInventoryRestore.setDebugMode(CONFIG.getBoolean("debug", false));
         DateUtils.reload();
         AutoBackupScheduler.start();
+        PendingRestoreService.start();
         HookManager.reloadHooks();
 
         Bukkit.getConsoleSender().sendMessage(StringUtils.formatToString("&#00aaff╚ &#00FF00Successful reload!"));

@@ -1,7 +1,9 @@
 package com.artillexstudios.axinventoryrestore.commands;
 
+import com.artillexstudios.axinventoryrestore.commands.subcommands.CancelPending;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Cleanup;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Help;
+import com.artillexstudios.axinventoryrestore.commands.subcommands.Pending;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Reload;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Save;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.SaveAll;
@@ -59,5 +61,18 @@ public class Commands {
     @CommandPermission("axinventoryrestore.search")
     public void search(Player sender, String search) {
         Search.INSTANCE.execute(sender, search);
+    }
+
+    @Subcommand("pending")
+    @CommandPermission("axinventoryrestore.restore")
+    @AutoComplete("@offlinePlayers")
+    public void pending(CommandSender sender, String player) {
+        Pending.INSTANCE.execute(sender, player);
+    }
+
+    @Subcommand("cancelpending")
+    @CommandPermission("axinventoryrestore.restore")
+    public void cancelPending(CommandSender sender, int id) {
+        CancelPending.INSTANCE.execute(sender, id);
     }
 }

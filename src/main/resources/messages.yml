@@ -9,6 +9,20 @@ manual-backup: "&#33FF33Successfully made a manual backup for &f%player%&#33FF33
 manual-backup-all: "&#33FF33Successfully made a manual backup for all players!"
 manual-created-by: "by: %player%"
 
+restored: "&#FFCC00Your items have been restored by a staff member, check your inventory!"
+restore-queued: "&#33FF33The restore is queued and will be executed when &f%player% &#33FF33joins. &#DDDDDD(id: %id%)"
+
+pending:
+  header: "&#00CCFFPending restores of &f%player% &#DDDDDD(%amount%)&#00CCFF:"
+  entry: " &#00DDFF➤ &f#%id% &#DDDDDD| &#AAFFFFDate: &f%date% &#DDDDDD| &#AAFFFFCategory: &f%category% &#DDDDDD| &#AAFFFFAccepted: %granted% &#DDDDDD| &#AAFFFFServer: &f%target-server%"
+  none: "&#FF3333%player% has no pending restores."
+  "yes": "&#33FF33yes"
+  "no": "&#FF3333no"
+
+cancelpending:
+  success: "&#33FF33Successfully removed pending restore &f#%id%&#33FF33!"
+  not-found: "&#FF3333There is no pending restore with id &f%id%&#FF3333!"
+
 help:
   - " "
   - "<gradient:#00AAFF:#00CCFF><b>AxInventoryRestore</b></gradient> <#00DDFF>Help"
@@ -17,6 +31,8 @@ help:
   - " <#00DDFF>➤ <white>/axir saveall <#DDDDDD>| <#AAFFFF>Create manual backup for all players"
   - " <#00DDFF>➤ <white>/axir reload <#DDDDDD>| <#AAFFFF>Reload plugin"
   - " <#00DDFF>➤ <white>/axir cleanup <#DDDDDD>| <#AAFFFF>Delete old backups (look at config.yml)"
+  - " <#00DDFF>➤ <white>/axir pending <player> <#DDDDDD>| <#AAFFFF>List pending restores"
+  - " <#00DDFF>➤ <white>/axir cancelpending <id> <#DDDDDD>| <#AAFFFF>Remove a pending restore"
   - " "
 
 errors:
@@ -25,6 +41,7 @@ errors:
   unknown-player: "&#FF3333This player has no backups saved! &#DDDDDD(error: %number%)"
   not-player: "&#FF3333You must be a player to execute this command!"
   world-not-found: "&#FF3333The world of this location doesn't exist or it isn't loaded."
+  restore-queue-failed: "&#FF3333Failed to queue the restore. Check the console for errors."
 
 restored-shulker:
   # this must be some kind of shulker box!
@@ -66,7 +83,7 @@ guis:
       lore:
         - " "
         - " &7- &#00FFFFNote: &fthis will erase the player's current items!"
-        - " &7- &#00FFFFThe player must be online for this to work!"
+        - " &7- &#00FFFFIf the player is offline, this happens when they join!"
         - " "
         - "&#00CCFF&l(!) &#00CCFFClick here to replace!"
     quick-restore-ender-chest:
@@ -75,7 +92,7 @@ guis:
       lore:
         - " "
         - " &7- &#00FFFFNote: &fthis will erase the current items in the ender chest!"
-        - " &7- &#00FFFFThe player must be online for this to work!"
+        - " &7- &#00FFFFIf the player is offline, this happens when they join!"
         - " "
         - "&#00CCFF&l(!) &#00CCFFClick here to replace!"
     teleport:
@@ -180,6 +197,13 @@ categories:
     lore:
       - " "
       - "&#AA00FF&l(!) &#AA00FFClick here to view backups!"
+  RESTORE_OVERWRITE:
+    raw: "RESTORE_OVERWRITE"
+    material: RECOVERY_COMPASS
+    name: "&#FF8800&lOVERWRITTEN BY RESTORE &7(%amount% backups)"
+    lore:
+      - " "
+      - "&#FF8800&l(!) &#FF8800Click here to view backups!"
 
 commands:
   invalid-value: "&#FF0000Invalid parameter: &#BB0000%value%"
@@ -194,4 +218,4 @@ commands:
 update-notifier: "&#88CCFFThere is a new version of AxInventoryRestore available! &#DDDDDD(&#FFFFFFcurrent: &#FF0000%current% &#DDDDDD| &#FFFFFFlatest: &#00FF00%latest%&#DDDDDD)"
 
 # do not change this
-version: 9
+version: 10
