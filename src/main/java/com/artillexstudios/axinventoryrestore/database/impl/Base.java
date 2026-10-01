@@ -1,15 +1,14 @@
 package com.artillexstudios.axinventoryrestore.database.impl;
 
-import com.artillexstudios.axapi.scheduler.Scheduler;
 import com.artillexstudios.axapi.serializers.Serializers;
-import com.artillexstudios.axapi.utils.ContainerUtils;
-import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axapi.utils.logging.LogUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.backups.Backup;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.database.Database;
 import com.artillexstudios.axinventoryrestore.events.AxirEvents;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
+import com.artillexstudios.axinventoryrestore.pending.RestoreRequest;
 import com.artillexstudios.axinventoryrestore.utils.BackupLimiter;
 import com.artillexstudios.axinventoryrestore.utils.DynamicLocation;
 import com.artillexstudios.axinventoryrestore.utils.DynamicWorld;
@@ -28,11 +27,14 @@ import org.slf4j.LoggerFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -42,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.CONFIG;
-import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.DISCORD;
 
 public abstract class Base implements Database {
     private static final Logger log = LoggerFactory.getLogger(Base.class);
@@ -88,6 +89,8 @@ public abstract class Base implements Database {
             log.error("An unexpected error occurred while creating axir_restorerequests table!", exception);
         }
 
+        addTargetServerColumn();
+
         final String CREATE_TABLE5 = "CREATE TABLE IF NOT EXISTS axir_storage (id INT NOT NULL AUTO_INCREMENT, inventory MEDIUMBLOB, PRIMARY KEY (id));";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(CREATE_TABLE5)) {
             stmt.executeUpdate();
@@ -125,6 +128,33 @@ public abstract class Base implements Database {
             stmt.executeUpdate();
         } catch (SQLException ignored) {
         }
+    }
+
+    // ALTER TABLE ... ADD COLUMN IF NOT EXISTS is not supported by MySQL, so check the columns first
+    private void addTargetServerColumn() {
+        if (hasTargetServerColumn()) return;
+
+        final String sql = "ALTER TABLE axir_restorerequests ADD COLUMN targetServer VARCHAR(64) NULL;";
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.executeUpdate();
+        } catch (SQLException exception) {
+            // another server sharing the database might have added it at the same time
+            if (hasTargetServerColumn()) return;
+            log.error("An unexpected error occurred while adding targetServer column to axir_restorerequests table!", exception);
+        }
+    }
+
+    private boolean hasTargetServerColumn() {
+        final String sql = "SELECT * FROM axir_restorerequests WHERE 1 = 0;";
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
+            final ResultSetMetaData meta = rs.getMetaData();
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                if (meta.getColumnName(i).equalsIgnoreCase("targetServer")) return true;
+            }
+        } catch (SQLException exception) {
+            log.error("An unexpected error occurred while reading columns of axir_restorerequests table!", exception);
+        }
+        return false;
     }
 
     @Nullable
@@ -571,9 +601,16 @@ public abstract class Base implements Database {
 
     @Override
     public int addRestoreRequest(int backupId) {
-        final String sql = "INSERT INTO axir_restorerequests(backupId, granted) VALUES (?, false);";
+        return addRestoreRequest(backupId, false, PendingRestoreService.getTargetServer());
+    }
+
+    @Override
+    public int addRestoreRequest(int backupId, boolean granted, @Nullable String targetServer) {
+        final String sql = "INSERT INTO axir_restorerequests(backupId, granted, targetServer) VALUES (?, ?, ?);";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setInt(1, backupId);
+            stmt.setBoolean(2, granted);
+            stmt.setString(3, targetServer);
             stmt.executeUpdate();
 
             try (ResultSet rs = stmt.getGeneratedKeys()) {
@@ -587,13 +624,14 @@ public abstract class Base implements Database {
     }
 
     @Override
-    public void grantRestoreRequest(int restoreId) {
-        final String sql = "UPDATE axir_restorerequests SET granted = true WHERE id = ?;";
+    public boolean grantRestoreRequest(int restoreId) {
+        final String sql = "UPDATE axir_restorerequests SET granted = true WHERE id = ? AND granted = false;";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setInt(1, restoreId);
-            stmt.executeUpdate();
+            if (stmt.executeUpdate() != 1) return false;
         } catch (SQLException exception) {
             log.error("An unexpected error occurred while granting restore request with id {}!", restoreId, exception);
+            return false;
         }
 
         final String sql2 = "SELECT uuid FROM axir_users WHERE id = (SELECT userId FROM axir_backups WHERE id = (SELECT backupId FROM axir_restorerequests WHERE id = ? LIMIT 1) LIMIT 1);";
@@ -606,6 +644,70 @@ public abstract class Base implements Database {
         } catch (SQLException exception) {
             log.error("An unexpected error occurred while granting restore request with id {}!", restoreId, exception);
         }
+        return true;
+    }
+
+    @Override
+    public boolean claimRestoreRequest(int restoreId) {
+        final String sql = "DELETE FROM axir_restorerequests WHERE id = ? AND granted = true;";
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, restoreId);
+            return stmt.executeUpdate() == 1;
+        } catch (SQLException exception) {
+            log.error("An unexpected error occurred while claiming restore request with id {}!", restoreId, exception);
+        }
+        return false;
+    }
+
+    @Override
+    public boolean declineRestoreRequest(int restoreId) {
+        final String sql = "DELETE FROM axir_restorerequests WHERE id = ? AND granted = false;";
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, restoreId);
+            return stmt.executeUpdate() == 1;
+        } catch (SQLException exception) {
+            log.error("An unexpected error occurred while declining restore request with id {}!", restoreId, exception);
+        }
+        return false;
+    }
+
+    @Override
+    public List<RestoreRequest> getRestoreRequests(@NotNull UUID uuid) {
+        return queryRestoreRequests("u.uuid = ?", List.of(uuid));
+    }
+
+    @Override
+    public List<RestoreRequest> getGrantedRestoreRequests(@NotNull Collection<UUID> uuids) {
+        if (uuids.isEmpty()) return List.of();
+        return queryRestoreRequests("r.granted = true AND u.uuid IN (" + String.join(",", Collections.nCopies(uuids.size(), "?")) + ")", uuids);
+    }
+
+    private List<RestoreRequest> queryRestoreRequests(String condition, Collection<UUID> uuids) {
+        final String sql = "SELECT r.id, r.backupId, r.granted, r.targetServer, u.uuid, b.time, b.reasonId FROM axir_restorerequests r " +
+                "INNER JOIN axir_backups b ON b.id = r.backupId INNER JOIN axir_users u ON u.id = b.userId WHERE " + condition + " ORDER BY r.id;";
+        final List<RestoreRequest> requests = new ArrayList<>();
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            int i = 1;
+            for (UUID uuid : uuids) {
+                stmt.setString(i++, uuid.toString());
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    requests.add(new RestoreRequest(rs.getInt(1),
+                            rs.getInt(2),
+                            rs.getBoolean(3),
+                            rs.getString(4),
+                            UUID.fromString(rs.getString(5)),
+                            rs.getLong(6),
+                            getReasonName(rs.getInt(7))
+                    ));
+                }
+            }
+        } catch (SQLException exception) {
+            log.error("An unexpected error occurred while getting restore requests!", exception);
+        }
+        return requests;
     }
 
     @Override
@@ -748,39 +850,22 @@ public abstract class Base implements Database {
 
     @Override
     public void fetchRestoreRequests(@NotNull UUID uuid) {
-        if (AxInventoryRestore.getDiscordAddon() == null) return;
         final Player player = Bukkit.getPlayer(uuid);
         if (player == null) return;
 
-        final String sql = "SELECT * FROM axir_restorerequests WHERE granted AND backupId IN (SELECT id FROM axir_backups WHERE userId = (SELECT id FROM axir_users WHERE uuid = ? LIMIT 1));";
-        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, uuid.toString());
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    final BackupData backupData = getBackupDataById(rs.getInt(2));
-
-                    backupData.getInShulkers("---").thenAccept(items -> Scheduler.get().run(scheduledTask -> ContainerUtils.INSTANCE.addOrDrop(player.getInventory(), items, player.getLocation())));
-                    player.sendMessage(StringUtils.formatToString(CONFIG.getString("prefix") + DISCORD.getString("messages.restored")));
-                    int id = rs.getInt(1);
-                    removeRestoreRequest(id);
-                }
-            }
-
-        } catch (SQLException exception) {
-            log.error("An unexpected error occurred while fetching restore request for user with uuid {}!", uuid, exception);
-        }
+        PendingRestoreService.process(player, getGrantedRestoreRequests(List.of(uuid)));
     }
 
     @Override
-    public void removeRestoreRequest(int restoreId) {
+    public boolean removeRestoreRequest(int restoreId) {
         final String ex = "DELETE FROM axir_restorerequests WHERE id = ?;";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(ex)) {
             stmt.setInt(1, restoreId);
-            stmt.executeUpdate();
+            return stmt.executeUpdate() == 1;
         } catch (SQLException exception) {
             log.error("An unexpected error occurred while removing restore request!", exception);
         }
+        return false;
     }
 
     @Override

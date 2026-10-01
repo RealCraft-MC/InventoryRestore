@@ -50,7 +50,8 @@ public class UpdateNotifier implements Listener {
         long time = 30L * 60L * 20L;
         Scheduler.get().runAsyncTimer(t -> {
             this.latest = readVersion();
-            this.newest = !isOutdated(current);
+            // ignore the -realcraft suffix, compare against the upstream version
+            this.newest = !isOutdated(current.split("-")[0]);
 
             if (latest == null || newest) return;
             Scheduler.get().runLaterAsync(t2 -> {

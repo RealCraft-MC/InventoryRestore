@@ -2,12 +2,15 @@ package com.artillexstudios.axinventoryrestore.database;
 
 import com.artillexstudios.axinventoryrestore.backups.Backup;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
+import com.artillexstudios.axinventoryrestore.pending.RestoreRequest;
 import com.artillexstudios.axinventoryrestore.utils.DynamicWorld;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface Database {
@@ -49,7 +52,20 @@ public interface Database {
 
     int addRestoreRequest(int backupId);
 
-    void grantRestoreRequest(int restoreId);
+    int addRestoreRequest(int backupId, boolean granted, @Nullable String targetServer);
+
+    // false if the request does not exist or was already granted
+    boolean grantRestoreRequest(int restoreId);
+
+    // deletes a granted request, only the caller that gets true may execute it
+    boolean claimRestoreRequest(int restoreId);
+
+    // deletes a request that is not granted yet
+    boolean declineRestoreRequest(int restoreId);
+
+    List<RestoreRequest> getRestoreRequests(@NotNull UUID uuid);
+
+    List<RestoreRequest> getGrantedRestoreRequests(@NotNull Collection<UUID> uuids);
 
     BackupData getBackupDataById(int backupId);
 
@@ -63,7 +79,7 @@ public interface Database {
 
     void fetchRestoreRequests(@NotNull UUID uuid);
 
-    void removeRestoreRequest(int restoreId);
+    boolean removeRestoreRequest(int restoreId);
 
     void cleanup();
 

@@ -1,5 +1,6 @@
 package com.artillexstudios.axinventoryrestore.guis;
 
+import com.artillexstudios.axapi.scheduler.Scheduler;
 import com.artillexstudios.axapi.utils.ItemBuilder;
 import com.artillexstudios.axapi.utils.PaperUtils;
 import com.artillexstudios.axapi.utils.StringUtils;
@@ -8,13 +9,13 @@ import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.discord.DiscordAddon;
 import com.artillexstudios.axinventoryrestore.events.AxirEvents;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import com.artillexstudios.axinventoryrestore.search.OpenDetails;
 import dev.triumphteam.gui.guis.Gui;
 import dev.triumphteam.gui.guis.GuiItem;
 import dev.triumphteam.gui.guis.PaginatedGui;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -101,24 +102,18 @@ public class PreviewGui {
                     return;
                 }
 
+                if (AxirEvents.callInventoryRestoreEvent(viewer, backupData)) return;
+
                 Player player = Bukkit.getPlayer(backupData.getPlayerUUID());
                 if (player == null) {
-                    MESSAGEUTILS.sendLang(viewer, "errors.player-offline");
+                    // not online on this server, execute it when they join
+                    PendingRestoreService.queue(viewer, backupData);
                     return;
                 }
 
-                if (AxirEvents.callInventoryRestoreEvent(viewer, backupData)) return;
-
-                int n2 = 0;
-                for (ItemStack it : items) {
-                    if (it == null) it = new ItemStack(Material.AIR);
-
-                    if (isEnder)
-                        player.getEnderChest().setItem(n2, it);
-                    else
-                        player.getInventory().setItem(n2, it);
-                    n2++;
-                }
+                Scheduler.get().run(player, task -> {
+                    PendingRestoreService.replace(player, isEnder, items, "quick restore by " + viewer.getName());
+                }, () -> MESSAGEUTILS.sendLang(viewer, "errors.player-offline"));
             }));
 
             final int starterFinal = starter;

@@ -33,8 +33,13 @@ public class AxirEvents {
     public static boolean callInventoryRestoreEvent(@NotNull Player restorer, @NotNull BackupData backupData) {
         final InventoryRestoreEvent inventoryRestoreEvent = new InventoryRestoreEvent(restorer, backupData);
         Bukkit.getPluginManager().callEvent(inventoryRestoreEvent);
+        sendRestoreWebhook(restorer.getName(), backupData);
+        return inventoryRestoreEvent.isCancelled();
+    }
+
+    public static void sendRestoreWebhook(@NotNull String restorer, @NotNull BackupData backupData) {
         Webhooks.sendRestoreWebhook(
-                Map.of("%restorer%", restorer.getName(),
+                Map.of("%restorer%", restorer,
                         "%player%", backupData.getPlayerName(),
                         "%category%", LANG.getString("categories." + backupData.getReason() + ".raw", backupData.getReason()),
                         "%extrainfo%", backupData.getCause() == null ? "---" : backupData.getCause(),
@@ -42,7 +47,6 @@ public class AxirEvents {
                         "%date%", DateUtils.formatDate(backupData.getDate())
                 )
         );
-        return inventoryRestoreEvent.isCancelled();
     }
 
     public static void callBackupExportEvent(@NotNull Player restorer, @NotNull BackupData backupData) {

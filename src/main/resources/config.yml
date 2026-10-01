@@ -73,10 +73,27 @@ save-limits:
   container-close: -1
   manual: -1
   automatic: -1
+  restore-overwrite: -1
   total: -1
 
 # check out the discord.yml for more info
 enable-discord-addon: false
+
+# the name of this server, used when multiple servers share the same (mysql/postgresql) database
+# restore requests made on this server will only be executed on a server with the same server-id
+# leave empty to execute restore requests on any server
+server-id: ""
+
+# what should happen when a restore request (discord or queued quick restore) is executed?
+# REPLACE: replace the inventory (or ender chest) of the player, like the quick restore button does
+#          the overwritten items are saved in the RESTORE_OVERWRITE category first
+# SHULKER: give the items to the player in shulker boxes
+pending-restore-mode: REPLACE
+
+# how often (in seconds) should the server check for accepted restore requests of online players?
+# this makes requests accepted on another server get executed without the player having to rejoin
+# only used with mysql and postgresql, set to 0 to disable
+pending-restore-poll-seconds: 10
 
 # settings for /axir search
 search:
@@ -100,4 +117,4 @@ update-notifier:
 debug: false
 
 # do not change this
-version: 9
+version: 10

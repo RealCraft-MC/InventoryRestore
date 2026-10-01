@@ -5,12 +5,15 @@ import com.artillexstudios.axapi.utils.ItemBuilder;
 import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
+import com.artillexstudios.axinventoryrestore.queue.Priority;
 import com.artillexstudios.axinventoryrestore.utils.DateUtils;
 import com.artillexstudios.axinventoryrestore.utils.JDAEmbedBuilder;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
@@ -23,10 +26,14 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.DISCORD;
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.LANG;
@@ -65,6 +72,7 @@ public class DiscordAddon extends ListenerAdapter {
         replacements.put("%category%", LANG.getString("categories." + backupData.getReason() + ".raw", "---"));
         replacements.put("%cause%", backupData.getCause() == null ? "---" : backupData.getCause());
         replacements.put("%location%", backupData.getLocation().getReadable());
+        replacements.put("%target-server%", Optional.ofNullable(PendingRestoreService.getTargetServer()).orElse("---"));
 
         if (ClassUtils.INSTANCE.classExists("net.luckperms.api.LuckPerms")) {
             RegisteredServiceProvider<net.luckperms.api.LuckPerms> provider = Bukkit.getServicesManager().getRegistration(net.luckperms.api.LuckPerms.class);
@@ -85,6 +93,19 @@ public class DiscordAddon extends ListenerAdapter {
             Button.success("axir-accept:" + id, DISCORD.getString("messages.restore")),
             Button.danger("axir-deny:" + id, DISCORD.getString("messages.decline"))
         );
+
+        // mentions inside embeds never ping, so they have to be in the content
+        List<String> pingRoles = DISCORD.getList("ping-role-ids", List.of()).stream()
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(role -> !role.isEmpty())
+                .toList();
+        if (!pingRoles.isEmpty()) {
+            action = action.setContent(pingRoles.stream().map(role -> "<@&" + role + ">").collect(Collectors.joining(" ")))
+                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
+                    .mentionRoles(pingRoles);
+        }
+
         action.queue((message -> {
             if (!DISCORD.getBoolean("create-thread", true)) {
                 cf.complete(true);
@@ -103,15 +124,18 @@ public class DiscordAddon extends ListenerAdapter {
 
     @Override
     public void onButtonInteraction(@NotNull ButtonInteractionEvent event) {
-        String status;
-        if (event.getComponentId().startsWith("axir-accept")) {
-            status = "accepted";
-            AxInventoryRestore.getDatabase().grantRestoreRequest(Integer.parseInt(event.getComponentId().split(":")[1]));
+        final String componentId = event.getComponentId();
+        final boolean accept;
+        if (componentId.startsWith("axir-accept:")) accept = true;
+        else if (componentId.startsWith("axir-deny:")) accept = false;
+        else return;
+
+        final int id;
+        try {
+            id = Integer.parseInt(componentId.substring(componentId.indexOf(':') + 1));
+        } catch (NumberFormatException ex) {
+            return;
         }
-        else if (event.getComponentId().startsWith("axir-deny")) {
-            status = "declined";
-            AxInventoryRestore.getDatabase().removeRestoreRequest(Integer.parseInt(event.getComponentId().split(":")[1]));
-        } else return;
 
         if (event.getMember() == null) {
             event.reply("Something went wrong! member = null").setEphemeral(true).queue();
@@ -122,8 +146,18 @@ public class DiscordAddon extends ListenerAdapter {
             return;
         }
 
+        final String status = accept ? "accepted" : "declined";
         try {
-            event.deferReply().queue(interactionHook -> {
+            // acknowledge first, discord only waits 3 seconds and the database might be slower
+            event.deferReply(true).queue(interactionHook -> AxInventoryRestore.getThreadedQueue().submit(() -> {
+                boolean handled = accept
+                        ? AxInventoryRestore.getDatabase().grantRestoreRequest(id)
+                        : AxInventoryRestore.getDatabase().declineRestoreRequest(id);
+                if (!handled) {
+                    interactionHook.sendMessage(DISCORD.getString("messages.already-handled")).setEphemeral(true).queue();
+                    return;
+                }
+
                 MessageEmbed embed = event.getMessage().getEmbeds().get(0);
                 event.getMessage().editMessageEmbeds(net.dv8tion.jda.api.EmbedBuilder.fromData(embed.toData())
                                 .setAuthor(event.getUser().getName(), null, event.getUser().getAvatarUrl())
@@ -131,7 +165,7 @@ public class DiscordAddon extends ListenerAdapter {
                         .queue();
                 event.getMessage().editMessageComponents().queue();
                 interactionHook.sendMessage((DISCORD.getString("messages." + status))).setEphemeral(true).queue();
-            });
+            }, Priority.HIGH));
         } catch (Exception ex) {
             // ignore jda's spam if interaction fails
         }
