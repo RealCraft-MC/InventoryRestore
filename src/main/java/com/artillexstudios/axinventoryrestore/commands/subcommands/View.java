@@ -19,6 +19,11 @@ public enum View {
     INSTANCE;
 
     public void execute(Player sender, String player) {
+        execute(sender, player, false);
+    }
+
+    // requestOnly: opened with /axir request, the gui only allows sending discord requests
+    public void execute(Player sender, String player, boolean requestOnly) {
         AxInventoryRestore.getThreadedQueue().submit(() -> {
             UUID uuid = getUUID(player);
             if (uuid == null) {
@@ -27,9 +32,11 @@ public enum View {
             }
 
             String name = Bukkit.getOfflinePlayer(uuid).getName();
+            OpenDetails details = OpenDetails.player(uuid, Optional.ofNullable(name).orElse(player));
+            if (requestOnly) details.requestOnly();
             Scheduler.get().run(sender, task -> {
                 new MainGui(
-                        OpenDetails.player(uuid, Optional.ofNullable(name).orElse(player)),
+                        details,
                         sender
                 ).open();
             }, () -> {});
