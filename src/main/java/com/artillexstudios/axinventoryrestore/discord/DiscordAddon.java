@@ -5,6 +5,8 @@ import com.artillexstudios.axapi.utils.ItemBuilder;
 import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
+import com.artillexstudios.axinventoryrestore.discord.preview.InventoryPreview;
+import com.artillexstudios.axinventoryrestore.discord.preview.TextureManager;
 import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import com.artillexstudios.axinventoryrestore.queue.Priority;
 import com.artillexstudios.axinventoryrestore.utils.DateUtils;
@@ -20,12 +22,16 @@ import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.components.buttons.Button;
 import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
+import net.dv8tion.jda.api.utils.FileUpload;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +45,7 @@ import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.DISCORD;
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.LANG;
 
 public class DiscordAddon extends ListenerAdapter {
+    private static final Logger log = LoggerFactory.getLogger(DiscordAddon.class);
     private JDA jda = null;
 
     public DiscordAddon() {
@@ -50,6 +57,7 @@ public class DiscordAddon extends ListenerAdapter {
         try {
             jda.awaitReady();
             jda.addEventListener(this);
+            TextureManager.init();
             Bukkit.getConsoleSender().sendMessage(StringUtils.formatToString("&#00FF00[AxInventoryRestore] Loaded discord module!"));
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -87,34 +95,53 @@ public class DiscordAddon extends ListenerAdapter {
         }
 
         CompletableFuture<Boolean> cf = new CompletableFuture<>();
-        cf.orTimeout(5, TimeUnit.SECONDS);
-        MessageCreateAction action = channel.sendMessageEmbeds(new JDAEmbedBuilder(DISCORD.getSection("prompt"), replacements).get());
-        action = action.addActionRow(
-            Button.success("axir-accept:" + id, DISCORD.getString("messages.restore")),
-            Button.danger("axir-deny:" + id, DISCORD.getString("messages.decline"))
-        );
-
-        // mentions inside embeds never ping, so they have to be in the content
-        List<String> pingRoles = DISCORD.getList("ping-role-ids", List.of()).stream()
-                .map(String::valueOf)
-                .map(String::trim)
-                .filter(role -> !role.isEmpty())
-                .toList();
-        if (!pingRoles.isEmpty()) {
-            action = action.setContent(pingRoles.stream().map(role -> "<@&" + role + ">").collect(Collectors.joining(" ")))
-                    .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
-                    .mentionRoles(pingRoles);
-        }
-
-        action.queue((message -> {
-            if (!DISCORD.getBoolean("create-thread", true)) {
-                cf.complete(true);
-                return;
+        cf.orTimeout(10, TimeUnit.SECONDS);
+        MessageEmbed embed = new JDAEmbedBuilder(DISCORD.getSection("prompt"), replacements).get();
+        // the item list and picture are made async, the request is sent once they are ready
+        InventoryPreview.create(backupData).thenAccept(preview -> {
+            List<FileUpload> files = new ArrayList<>();
+            MessageEmbed finalEmbed = embed;
+            if (preview != null) {
+                try {
+                    finalEmbed = preview.apply(embed, files);
+                } catch (Exception ex) {
+                    files.clear();
+                    log.warn("Failed to add the inventory preview to restore request #{}!", id, ex);
+                }
             }
-            channel.createThreadChannel(DISCORD.getString("thread-name", "-"), message.getId()).queue(threadChannel -> {
-                cf.complete(true);
+
+            MessageCreateAction action = channel.sendMessageEmbeds(finalEmbed);
+            if (!files.isEmpty()) action = action.addFiles(files);
+            action = action.addActionRow(
+                Button.success("axir-accept:" + id, DISCORD.getString("messages.restore")),
+                Button.danger("axir-deny:" + id, DISCORD.getString("messages.decline"))
+            );
+
+            // mentions inside embeds never ping, so they have to be in the content
+            List<String> pingRoles = DISCORD.getList("ping-role-ids", List.of()).stream()
+                    .map(String::valueOf)
+                    .map(String::trim)
+                    .filter(role -> !role.isEmpty())
+                    .toList();
+            if (!pingRoles.isEmpty()) {
+                action = action.setContent(pingRoles.stream().map(role -> "<@&" + role + ">").collect(Collectors.joining(" ")))
+                        .setAllowedMentions(EnumSet.noneOf(Message.MentionType.class))
+                        .mentionRoles(pingRoles);
+            }
+
+            action.queue((message -> {
+                if (!DISCORD.getBoolean("create-thread", true)) {
+                    cf.complete(true);
+                    return;
+                }
+                channel.createThreadChannel(DISCORD.getString("thread-name", "-"), message.getId()).queue(threadChannel -> {
+                    cf.complete(true);
+                });
+            }), failure -> {
+                log.warn("Failed to send restore request #{} to discord!", id, failure);
+                cf.complete(false);
             });
-        }));
+        });
         return cf;
     }
 

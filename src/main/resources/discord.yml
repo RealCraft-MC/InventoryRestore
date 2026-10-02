@@ -150,6 +150,18 @@ thread-name: "Restore"
 # "Mention @everyone, @here and All Roles" permission, otherwise nobody gets pinged
 ping-role-ids: []
 
+# adds a list of the items in the backup and a picture of the inventory to restore requests
+inventory-preview:
+  enabled: true
+  # the picture of the inventory, the item list is always added when the preview is enabled
+  image: true
+  # item textures are not part of the server, so the bot downloads the official minecraft client from mojang once
+  # (about 30 MB) and keeps the item and block textures in plugins/AxInventoryRestore/textures
+  # set this to false if you want to put the textures there yourself (the item/ and block/ folders of a resource pack)
+  download-textures: true
+  # the name of the field with the item list
+  items-field-name: "Items"
+
 messages:
   restore: "Restore"
   decline: "Decline"
@@ -200,4 +212,4 @@ prompt:
       name: "Target server"
       value: "%target-server%"
 
-version: 4
+version: 5

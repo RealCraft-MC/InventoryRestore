@@ -27,6 +27,7 @@ Fork for the RealCraft network (multiple Paper backends behind a proxy, sharing 
 - `ping-role-ids: []`: role IDs (as strings) that are pinged when a request is posted. The role must be mentionable, or the bot needs "Mention @everyone, @here and All Roles". Only these roles can be pinged.
 - `messages.already-handled`: reply when a request was already accepted/declined.
 - `%target-server%` placeholder in `prompt` (new field 6).
+- `inventory-preview.*`: restore requests get a list of the items in the backup (identical items merged, with enchantments, custom names and the number of stacks in shulker boxes) and a picture of the inventory. If the list is too long for Discord, the full list is attached as `items.txt`. The bot server downloads the official Minecraft client from Mojang once (about 30 MB) and keeps only the item and block textures in `plugins/AxInventoryRestore/textures`. Set `download-textures: false` to provide them yourself. Blocks are shown as one flat face, and items without a texture (chests, heads, ...) as the magenta/black missing texture.
 - `messages.restored` moved to `messages.yml` (`restored`).
 
 **messages.yml**: `restored`, `restore-queued`, `errors.restore-queue-failed`, `errors.discord-disabled`, `pending.*`, `cancelpending.*`, `categories.RESTORE_OVERWRITE`.
