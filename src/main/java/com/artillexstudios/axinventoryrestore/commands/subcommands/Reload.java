@@ -2,6 +2,7 @@ package com.artillexstudios.axinventoryrestore.commands.subcommands;
 
 import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
+import com.artillexstudios.axinventoryrestore.discord.preview.TextureManager;
 import com.artillexstudios.axinventoryrestore.events.Webhooks;
 import com.artillexstudios.axinventoryrestore.hooks.HookManager;
 import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
@@ -39,6 +40,7 @@ public enum Reload {
         }
         Bukkit.getConsoleSender().sendMessage(StringUtils.formatToString("&#00aaff╠ &#00FF00Reloaded &fdiscord.yml&#00FF00!"));
         Webhooks.reload();
+        if (AxInventoryRestore.getDiscordAddon() != null) TextureManager.init();
 
         AxInventoryRestore.setDebugMode(CONFIG.getBoolean("debug", false));
         DateUtils.reload();
