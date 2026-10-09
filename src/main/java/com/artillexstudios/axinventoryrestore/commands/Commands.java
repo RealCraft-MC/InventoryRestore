@@ -10,6 +10,7 @@ import com.artillexstudios.axinventoryrestore.commands.subcommands.Save;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.SaveAll;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.Search;
 import com.artillexstudios.axinventoryrestore.commands.subcommands.View;
+import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -70,7 +71,7 @@ public class Commands {
     @CommandPermission("axinventoryrestore.discord-request")
     @AutoComplete("@offlinePlayers")
     public void request(Player sender, String player) {
-        if (AxInventoryRestore.getDiscordAddon() == null) {
+        if (AxInventoryRestore.getDiscordAddon() == null && !PendingRestoreService.isExternalRequestHandler()) {
             MESSAGEUTILS.sendLang(sender, "errors.discord-disabled");
             return;
         }

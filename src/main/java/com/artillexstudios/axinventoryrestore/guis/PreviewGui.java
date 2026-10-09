@@ -6,6 +6,7 @@ import com.artillexstudios.axapi.utils.PaperUtils;
 import com.artillexstudios.axapi.utils.StringUtils;
 import com.artillexstudios.axapi.utils.logging.LogUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
+import com.artillexstudios.axinventoryrestore.api.events.AxirRestoreRequestEvent;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.discord.DiscordAddon;
 import com.artillexstudios.axinventoryrestore.events.AxirEvents;
@@ -21,6 +22,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.Map;
 
+import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.DISCORD;
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.LANG;
 import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.MESSAGEUTILS;
 
@@ -69,16 +71,17 @@ public class PreviewGui {
 
             int starter = 46;
             final DiscordAddon discordAddon = AxInventoryRestore.getDiscordAddon();
-            if (discordAddon != null) starter = 45;
+            final boolean requestButton = discordAddon != null || PendingRestoreService.isExternalRequestHandler();
+            if (requestButton) starter = 45;
 
             previewGui.setItem(starter, new GuiItem(ItemBuilder.create(LANG.getSection("gui-items.back")).get(), event -> {
                 lastGui.open(viewer, pageNum);
                 event.setCancelled(true);
             }));
 
-            // opened with /axir request: only allow looking at the items and sending a discord request
+            // opened with /axir request: only allow looking at the items and sending a restore request
             if (details.isRequestOnly()) {
-                if (discordAddon != null) setRequestButton(starter + 8, discordAddon);
+                if (requestButton) setRequestButton(starter + 8, discordAddon);
                 previewGui.update();
                 return;
             }
@@ -142,7 +145,7 @@ public class PreviewGui {
                 previewGui.update();
             });
 
-            if (discordAddon != null) setRequestButton(starter + 8, discordAddon);
+            if (requestButton) setRequestButton(starter + 8, discordAddon);
 
             previewGui.update();
         });
@@ -151,8 +154,9 @@ public class PreviewGui {
         if (AxInventoryRestore.isDebugMode()) LogUtils.debug("Preview gui opened for {} in {}ms", viewer.getName(), System.currentTimeMillis() - time);
     }
 
+    // discordAddon is null when only the external handler is used
     private void setRequestButton(int slot, DiscordAddon discordAddon) {
-        previewGui.setItem(slot, new GuiItem(discordAddon.getRequestItem(), event -> {
+        previewGui.setItem(slot, new GuiItem(ItemBuilder.create(DISCORD.getSection("request-restore")).get(), event -> {
             event.setCancelled(true);
 
             if (!viewer.hasPermission("axinventoryrestore.discord-request")) {
@@ -162,6 +166,19 @@ public class PreviewGui {
 
             // close the gui so the same backup isn't requested twice by accident
             viewer.closeInventory();
+            if (PendingRestoreService.isExternalRequestHandler()) {
+                if (AxirRestoreRequestEvent.getHandlerList().getRegisteredListeners().length == 0) {
+                    MESSAGEUTILS.sendLang(viewer, "discord-request.no-handler");
+                    return;
+                }
+                Bukkit.getPluginManager().callEvent(new AxirRestoreRequestEvent(viewer, backupData.getPlayerUUID(), backupData.getId()));
+                return;
+            }
+            if (discordAddon == null) {
+                MESSAGEUTILS.sendLang(viewer, "errors.discord-disabled");
+                return;
+            }
+
             discordAddon.sendRequest((Player) event.getWhoClicked(), backupData).thenAccept(success -> {
                 MESSAGEUTILS.sendLang(viewer, "discord-request." + (success ? "success" : "failure"));
             });

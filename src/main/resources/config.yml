@@ -95,6 +95,13 @@ pending-restore-mode: REPLACE
 # only used with mysql and postgresql, set to 0 to disable
 pending-restore-poll-seconds: 10
 
+# who handles the "request restore" button in the backup preview?
+# INTERNAL: this plugin posts the request on discord (discord.yml), staff accept or decline it there
+# EXTERNAL: the button only calls AxirRestoreRequestEvent, another plugin (RealCraft-StaffTools) handles the request
+#           and restores through the AxirAPI service. No discord request is posted by this plugin.
+restore-requests:
+  handler: INTERNAL
+
 # settings for /axir search
 search:
   # after how many matching backups should the plugin stop searching?
@@ -117,4 +124,4 @@ update-notifier:
 debug: false
 
 # do not change this
-version: 10
+version: 11

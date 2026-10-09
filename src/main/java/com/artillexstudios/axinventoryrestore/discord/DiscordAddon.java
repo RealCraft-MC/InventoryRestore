@@ -65,6 +65,12 @@ public class DiscordAddon extends ListenerAdapter {
     }
 
     public CompletableFuture<Boolean> sendRequest(Player requester, BackupData backupData) {
+        // another plugin posts the requests, accept/decline of earlier requests keeps working
+        if (PendingRestoreService.isExternalRequestHandler()) {
+            log.warn("Not sending a discord restore request for backup {}, restore-requests.handler is EXTERNAL.", backupData.getId());
+            return CompletableFuture.completedFuture(false);
+        }
+
         TextChannel channel = jda.getTextChannelById(DISCORD.getString("channel-id"));
         if (channel == null) {
             Bukkit.getConsoleSender().sendMessage(StringUtils.formatToString("&#FF0000[AxInventoryRestore] Discord channel with id %s not found!".formatted(DISCORD.getString("channel-id"))));

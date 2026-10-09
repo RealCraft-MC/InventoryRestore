@@ -1,5 +1,6 @@
 package com.artillexstudios.axinventoryrestore.database;
 
+import com.artillexstudios.axinventoryrestore.api.BackupInfo;
 import com.artillexstudios.axinventoryrestore.backups.Backup;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.pending.RestoreRequest;
@@ -68,6 +69,12 @@ public interface Database {
     List<RestoreRequest> getGrantedRestoreRequests(@NotNull Collection<UUID> uuids);
 
     BackupData getBackupDataById(int backupId);
+
+    @Nullable
+    BackupInfo getBackupInfo(int backupId);
+
+    // newest first, limit <= 0 = all
+    List<BackupInfo> getBackupInfos(@NotNull UUID uuid, int limit);
 
     ItemStack[] getItemsFromBackup(int backupId);
 

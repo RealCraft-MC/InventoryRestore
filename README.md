@@ -39,4 +39,14 @@ Permission `axinventoryrestore.restore`:
 - `/axir pending <player>`: list pending restore requests (id, backup date, category, accepted, target server).
 - `/axir cancelpending <id>`: remove a pending restore request.
 
-**Database**: new nullable column `axir_restorerequests.targetServer VARCHAR(64)`, added automatically on startup.
+**Database**: new nullable columns `axir_restorerequests.targetServer VARCHAR(64)` and `axir_backups.serverId VARCHAR(64)` (the `server-id` of the backend that made the backup), added automatically on startup.
+
+### Restore API for other plugins
+
+`AxirAPI` is registered in the Bukkit `ServicesManager` (`Bukkit.getServicesManager().load(AxirAPI.class)`), callable from any thread:
+- `listBackups(player, limit)` / `getBackup(id)`: metadata only (`BackupInfo`: id, player, reason, cause, time, serverId).
+- `queueRestore(backupId, target, actor, source)`: restores without a new approval, through the same pending-request route as a queued quick-restore (atomic claim, `RESTORE_OVERWRITE` backup in REPLACE mode). The backup is restored on the backend whose `server-id` made it; backups without a server-id on the calling backend. Results: `APPLIED` (done on this backend), `QUEUED` (stored, applied by join/poll on the right backend, also for a backup that is already queued or being restored, which is not queued again), `BACKUP_NOT_FOUND`, `WRONG_SERVER` (backup from another backend while the database is not shared), `FAILED`. `source` goes to the console log together with the request id; the `RESTORE_OVERWRITE` backup has cause `request #<id>`.
+
+`config.yml` → `restore-requests.handler`:
+- `INTERNAL` (default): the request button posts a Discord request, as before.
+- `EXTERNAL`: the request button (also with `/axir request`, which then works without the Discord addon) only calls `AxirRestoreRequestEvent` (requester, target, backup id). No Discord message, no row in `axir_restorerequests`. Without a listener the requester gets `discord-request.no-handler`. The Discord addon posts no request embeds; accept/decline of older requests keeps working.
