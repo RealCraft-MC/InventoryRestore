@@ -13,6 +13,7 @@ import com.artillexstudios.axapi.utils.MessageUtils;
 import com.artillexstudios.axapi.utils.featureflags.FeatureFlags;
 import com.artillexstudios.axapi.utils.logging.LoggerNameFormat;
 import com.artillexstudios.axdiscordwebhooks.builder.WebhookMigrator;
+import com.artillexstudios.axinventoryrestore.api.AxirAPI;
 import com.artillexstudios.axinventoryrestore.commands.CommandManager;
 import com.artillexstudios.axinventoryrestore.database.Database;
 import com.artillexstudios.axinventoryrestore.database.impl.H2;
@@ -23,6 +24,7 @@ import com.artillexstudios.axinventoryrestore.events.Webhooks;
 import com.artillexstudios.axinventoryrestore.hooks.HookManager;
 import com.artillexstudios.axinventoryrestore.libraries.Libraries;
 import com.artillexstudios.axinventoryrestore.listeners.ListenerManager;
+import com.artillexstudios.axinventoryrestore.pending.AxirAPIImpl;
 import com.artillexstudios.axinventoryrestore.pending.PendingRestoreService;
 import com.artillexstudios.axinventoryrestore.queue.PriorityThreadedQueue;
 import com.artillexstudios.axinventoryrestore.schedulers.AutoBackupScheduler;
@@ -30,6 +32,8 @@ import com.artillexstudios.axinventoryrestore.schedulers.GuiUpdater;
 import com.artillexstudios.axinventoryrestore.utils.UpdateNotifier;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SimplePie;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.ServicePriority;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -111,6 +115,7 @@ public final class AxInventoryRestore extends AxPlugin {
         GuiUpdater.start();
         PendingRestoreService.start();
         ListenerManager.register();
+        Bukkit.getServicesManager().register(AxirAPI.class, new AxirAPIImpl(), this, ServicePriority.Normal);
 
         boolean loadDiscordAddon = CONFIG.getBoolean("enable-discord-addon", false);
         if (loadDiscordAddon && !DISCORD.getString("token").isBlank()) discordAddon = new DiscordAddon();

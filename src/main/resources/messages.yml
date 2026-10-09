@@ -60,6 +60,7 @@ restored-shulker:
 discord-request:
   success: "&#33FF33You have successfully sent the restore request."
   failure: "&#FF3333Failed to send restore request. Check the console for errors."
+  no-handler: "&#FF3333Restore requests are handled by another plugin, but it is not loaded. Contact an administrator."
 
 guis:
   maingui:
@@ -220,4 +221,4 @@ commands:
 update-notifier: "&#88CCFFThere is a new version of AxInventoryRestore available! &#DDDDDD(&#FFFFFFcurrent: &#FF0000%current% &#DDDDDD| &#FFFFFFlatest: &#00FF00%latest%&#DDDDDD)"
 
 # do not change this
-version: 11
+version: 12

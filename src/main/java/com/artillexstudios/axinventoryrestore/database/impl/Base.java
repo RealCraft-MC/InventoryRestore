@@ -3,6 +3,7 @@ package com.artillexstudios.axinventoryrestore.database.impl;
 import com.artillexstudios.axapi.serializers.Serializers;
 import com.artillexstudios.axapi.utils.logging.LogUtils;
 import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
+import com.artillexstudios.axinventoryrestore.api.BackupInfo;
 import com.artillexstudios.axinventoryrestore.backups.Backup;
 import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.database.Database;
@@ -89,7 +90,8 @@ public abstract class Base implements Database {
             log.error("An unexpected error occurred while creating axir_restorerequests table!", exception);
         }
 
-        addTargetServerColumn();
+        addColumn("axir_restorerequests", "targetServer", "VARCHAR(64) NULL");
+        addColumn("axir_backups", "serverId", "VARCHAR(64) NULL");
 
         final String CREATE_TABLE5 = "CREATE TABLE IF NOT EXISTS axir_storage (id INT NOT NULL AUTO_INCREMENT, inventory MEDIUMBLOB, PRIMARY KEY (id));";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(CREATE_TABLE5)) {
@@ -131,28 +133,28 @@ public abstract class Base implements Database {
     }
 
     // ALTER TABLE ... ADD COLUMN IF NOT EXISTS is not supported by MySQL, so check the columns first
-    private void addTargetServerColumn() {
-        if (hasTargetServerColumn()) return;
+    private void addColumn(String table, String column, String definition) {
+        if (hasColumn(table, column)) return;
 
-        final String sql = "ALTER TABLE axir_restorerequests ADD COLUMN targetServer VARCHAR(64) NULL;";
+        final String sql = "ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition + ";";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.executeUpdate();
         } catch (SQLException exception) {
             // another server sharing the database might have added it at the same time
-            if (hasTargetServerColumn()) return;
-            log.error("An unexpected error occurred while adding targetServer column to axir_restorerequests table!", exception);
+            if (hasColumn(table, column)) return;
+            log.error("An unexpected error occurred while adding {} column to {} table!", column, table, exception);
         }
     }
 
-    private boolean hasTargetServerColumn() {
-        final String sql = "SELECT * FROM axir_restorerequests WHERE 1 = 0;";
+    private boolean hasColumn(String table, String column) {
+        final String sql = "SELECT * FROM " + table + " WHERE 1 = 0;";
         try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql); ResultSet rs = stmt.executeQuery()) {
             final ResultSetMetaData meta = rs.getMetaData();
             for (int i = 1; i <= meta.getColumnCount(); i++) {
-                if (meta.getColumnName(i).equalsIgnoreCase("targetServer")) return true;
+                if (meta.getColumnName(i).equalsIgnoreCase(column)) return true;
             }
         } catch (SQLException exception) {
-            log.error("An unexpected error occurred while reading columns of axir_restorerequests table!", exception);
+            log.error("An unexpected error occurred while reading columns of {} table!", table, exception);
         }
         return false;
     }
@@ -307,7 +309,7 @@ public abstract class Base implements Database {
         long time = System.currentTimeMillis();
         if (AxInventoryRestore.isDebugMode()) LogUtils.debug("Creating backup for {} [reason: {}] [cause: {}]", player.getName(), reason, cause);
 
-        final String sql = "INSERT INTO axir_backups(userId, reasonId, worldId, x, y, z, inventoryId, time, cause) VALUES (?,?,?,?,?,?,?,?,?);";
+        final String sql = "INSERT INTO axir_backups(userId, reasonId, worldId, x, y, z, inventoryId, time, cause, serverId) VALUES (?,?,?,?,?,?,?,?,?,?);";
         final Location location = player.getLocation();
 
         AxInventoryRestore.getThreadedQueue().submit(() -> {
@@ -346,6 +348,7 @@ public abstract class Base implements Database {
                 stmt.setInt(7, storedId);
                 stmt.setLong(8, System.currentTimeMillis());
                 stmt.setString(9, cause);
+                stmt.setString(10, PendingRestoreService.getTargetServer());
                 stmt.executeUpdate();
             } catch (Exception exception) {
                 log.error("An unexpected error occurred while saving inventory of user {}!", player.getName(), exception);
@@ -736,6 +739,46 @@ public abstract class Base implements Database {
         }
 
         return null;
+    }
+
+    @Nullable
+    @Override
+    public BackupInfo getBackupInfo(int backupId) {
+        final List<BackupInfo> infos = queryBackupInfos("b.id = ?", 1, stmt -> stmt.setInt(1, backupId));
+        return infos.isEmpty() ? null : infos.get(0);
+    }
+
+    @Override
+    public List<BackupInfo> getBackupInfos(@NotNull UUID uuid, int limit) {
+        return queryBackupInfos("u.uuid = ?", limit <= 0 ? Integer.MAX_VALUE : limit, stmt -> stmt.setString(1, uuid.toString()));
+    }
+
+    private interface StatementFiller {
+        void fill(PreparedStatement stmt) throws SQLException;
+    }
+
+    private List<BackupInfo> queryBackupInfos(String condition, int limit, StatementFiller filler) {
+        final String sql = "SELECT b.id, u.uuid, r.reason, b.cause, b.time, b.serverId FROM axir_backups b " +
+                "INNER JOIN axir_users u ON u.id = b.userId INNER JOIN axir_reasons r ON r.id = b.reasonId WHERE " + condition + " ORDER BY b.time DESC, b.id DESC LIMIT " + limit + ";";
+        final List<BackupInfo> infos = new ArrayList<>();
+        try (Connection conn = getConnection(); PreparedStatement stmt = conn.prepareStatement(sql)) {
+            filler.fill(stmt);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    infos.add(new BackupInfo(rs.getInt(1),
+                            UUID.fromString(rs.getString(2)),
+                            rs.getString(3),
+                            rs.getString(4),
+                            rs.getLong(5),
+                            rs.getString(6)
+                    ));
+                }
+            }
+        } catch (SQLException exception) {
+            log.error("An unexpected error occurred while getting backup info!", exception);
+        }
+        return infos;
     }
 
     public byte[] getBytesFromBackup(int backupId) {
