@@ -36,6 +36,14 @@ public interface AxirAPI {
     CompletableFuture<Optional<ItemStack[]>> getItems(int backupId);
 
     /**
+     * The picture and item list of a backup, the same preview the discord addon adds to a restore request.
+     * The picture needs the item textures (see {@code inventory-preview} in discord.yml); they are downloaded when the
+     * discord addon or {@code restore-requests.handler: EXTERNAL} is enabled. Until then the image is null.
+     * Empty if the backup does not exist.
+     */
+    CompletableFuture<Optional<BackupPreview>> renderPreview(int backupId);
+
+    /**
      * Restores a backup without asking for approval again, the same way {@code /axir pending} requests are executed:
      * applied right away if the player is online on the backend the backup belongs to, otherwise on their next join there.
      * In REPLACE mode the current items are saved as RESTORE_OVERWRITE first.

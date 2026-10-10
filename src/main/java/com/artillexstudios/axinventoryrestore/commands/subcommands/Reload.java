@@ -40,7 +40,7 @@ public enum Reload {
         }
         Bukkit.getConsoleSender().sendMessage(StringUtils.formatToString("&#00aaff╠ &#00FF00Reloaded &fdiscord.yml&#00FF00!"));
         Webhooks.reload();
-        if (AxInventoryRestore.getDiscordAddon() != null) TextureManager.init();
+        if (AxInventoryRestore.getDiscordAddon() != null || PendingRestoreService.isExternalRequestHandler()) TextureManager.init();
 
         AxInventoryRestore.setDebugMode(CONFIG.getBoolean("debug", false));
         DateUtils.reload();

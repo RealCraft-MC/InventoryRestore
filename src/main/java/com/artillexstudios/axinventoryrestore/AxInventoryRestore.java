@@ -20,6 +20,7 @@ import com.artillexstudios.axinventoryrestore.database.impl.H2;
 import com.artillexstudios.axinventoryrestore.database.impl.MySQL;
 import com.artillexstudios.axinventoryrestore.database.impl.PostgreSQL;
 import com.artillexstudios.axinventoryrestore.discord.DiscordAddon;
+import com.artillexstudios.axinventoryrestore.discord.preview.TextureManager;
 import com.artillexstudios.axinventoryrestore.events.Webhooks;
 import com.artillexstudios.axinventoryrestore.hooks.HookManager;
 import com.artillexstudios.axinventoryrestore.libraries.Libraries;
@@ -119,6 +120,8 @@ public final class AxInventoryRestore extends AxPlugin {
 
         boolean loadDiscordAddon = CONFIG.getBoolean("enable-discord-addon", false);
         if (loadDiscordAddon && !DISCORD.getString("token").isBlank()) discordAddon = new DiscordAddon();
+        // the external request handler (another plugin's bot) uses AxirAPI#renderPreview, which needs the textures too
+        if (discordAddon == null && PendingRestoreService.isExternalRequestHandler()) TextureManager.init();
         bstats.addCustomChart(new SimplePie("uses_discord_addon", () -> "" + loadDiscordAddon));
 
         metrics = new AxMetrics(this, 19);
