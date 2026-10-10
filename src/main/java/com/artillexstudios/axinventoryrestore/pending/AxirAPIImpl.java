@@ -4,7 +4,9 @@ import com.artillexstudios.axinventoryrestore.AxInventoryRestore;
 import com.artillexstudios.axinventoryrestore.api.AxirAPI;
 import com.artillexstudios.axinventoryrestore.api.BackupInfo;
 import com.artillexstudios.axinventoryrestore.api.RestoreResult;
+import com.artillexstudios.axinventoryrestore.backups.BackupData;
 import com.artillexstudios.axinventoryrestore.queue.Priority;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -26,6 +28,25 @@ public final class AxirAPIImpl implements AxirAPI {
     @Override
     public CompletableFuture<Optional<BackupInfo>> getBackup(int backupId) {
         return supply(() -> Optional.ofNullable(AxInventoryRestore.getDatabase().getBackupInfo(backupId)));
+    }
+
+    @Override
+    public CompletableFuture<Optional<ItemStack[]>> getItems(int backupId) {
+        return supply(() -> Optional.ofNullable(AxInventoryRestore.getDatabase().getBackupDataById(backupId)))
+                .thenCompose(data -> data.isEmpty()
+                        ? CompletableFuture.completedFuture(Optional.<ItemStack[]>empty())
+                        : data.get().getItems().thenApply(items -> Optional.of(copy(items))));
+    }
+
+    private static ItemStack[] copy(ItemStack[] items) {
+        if (items == null) {
+            return new ItemStack[0];
+        }
+        final ItemStack[] copy = new ItemStack[items.length];
+        for (int i = 0; i < items.length; i++) {
+            copy[i] = items[i] == null ? null : items[i].clone();
+        }
+        return copy;
     }
 
     @Override
