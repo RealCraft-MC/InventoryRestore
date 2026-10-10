@@ -45,6 +45,7 @@ Permission `axinventoryrestore.restore`:
 
 `AxirAPI` is registered in the Bukkit `ServicesManager` (`Bukkit.getServicesManager().load(AxirAPI.class)`), callable from any thread:
 - `listBackups(player, limit)` / `getBackup(id)`: metadata only (`BackupInfo`: id, player, reason, cause, time, serverId).
+- `getItems(id)`: copies of the items of a backup, for a read-only preview (slot order of `PlayerInventory#getContents()`, or the 27 ender chest slots for `ENDER_CHEST` backups).
 - `queueRestore(backupId, target, actor, source)`: restores without a new approval, through the same pending-request route as a queued quick-restore (atomic claim, `RESTORE_OVERWRITE` backup in REPLACE mode). The backup is restored on the backend whose `server-id` made it; backups without a server-id on the calling backend. Results: `APPLIED` (done on this backend), `QUEUED` (stored, applied by join/poll on the right backend, also for a backup that is already queued or being restored, which is not queued again), `BACKUP_NOT_FOUND`, `WRONG_SERVER` (backup from another backend while the database is not shared), `FAILED`. `source` goes to the console log together with the request id; the `RESTORE_OVERWRITE` backup has cause `request #<id>`.
 
 `config.yml` → `restore-requests.handler`:

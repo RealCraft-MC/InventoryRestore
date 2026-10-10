@@ -1,5 +1,6 @@
 package com.artillexstudios.axinventoryrestore.api;
 
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,6 +26,14 @@ public interface AxirAPI {
     CompletableFuture<List<BackupInfo>> listBackups(@NotNull UUID player, int limit);
 
     CompletableFuture<Optional<BackupInfo>> getBackup(int backupId);
+
+    /**
+     * The items of a backup, for a read-only preview. Same slot order as {@code PlayerInventory#getContents()}:
+     * 0-8 hotbar, 9-35 main inventory, 36-39 armor (boots, leggings, chestplate, helmet), 40 offhand.
+     * {@code ENDER_CHEST} backups hold the 27 ender chest slots instead. Empty slots are null.
+     * The items are copies: changing them does not change the backup. Empty if the backup does not exist.
+     */
+    CompletableFuture<Optional<ItemStack[]>> getItems(int backupId);
 
     /**
      * Restores a backup without asking for approval again, the same way {@code /axir pending} requests are executed:
