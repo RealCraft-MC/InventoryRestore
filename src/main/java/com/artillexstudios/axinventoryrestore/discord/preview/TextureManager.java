@@ -37,15 +37,19 @@ import static com.artillexstudios.axinventoryrestore.AxInventoryRestore.DISCORD;
 
 /**
  * Item textures are not part of the server, so they are taken from the official Minecraft client jar,
- * which is downloaded from Mojang once and only the item and block textures are kept.
- * Files are stored in plugins/AxInventoryRestore/textures/{item,block}/*.png
+ * which is downloaded from Mojang once and only the item, block and entity textures and the item definitions and models
+ * are kept (the models are used by {@link ModelResolver} for items that have no flat texture, like beds and heads).
+ * Files are stored in plugins/AxInventoryRestore/textures/{item,block,entity}/*.png, textures/items/*.json and
+ * textures/models/{item,block}/*.json
  */
 public final class TextureManager {
     private static final Logger log = LoggerFactory.getLogger(TextureManager.class);
     private static final String MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-    private static final Pattern TEXTURE = Pattern.compile("assets/minecraft/textures/(item|block)/[a-z0-9_]+\\.png");
+    private static final Pattern TEXTURE = Pattern.compile("assets/minecraft/textures/((item|block)/[a-z0-9_]+|entity/[a-z0-9_/]+)\\.png");
+    private static final Pattern DEFINITION = Pattern.compile("assets/minecraft/(items|models/(item|block))/[a-z0-9_]+\\.json");
     private static final Map<String, Optional<BufferedImage>> cache = new ConcurrentHashMap<>();
     private static volatile boolean ready = false;
+    private static volatile ModelResolver models = new ModelResolver(TextureManager::get, TextureManager::json);
 
     public static File getFolder() {
         return new File(AxInventoryRestore.getInstance().getDataFolder(), "textures");
@@ -57,6 +61,7 @@ public final class TextureManager {
 
     public static void init() {
         cache.clear();
+        models = new ModelResolver(TextureManager::get, TextureManager::json);
         ready = hasTextures();
 
         String version = Bukkit.getBukkitVersion().split("-")[0];
@@ -64,7 +69,8 @@ public final class TextureManager {
             if (!ready) log.warn("No item textures found in {}, the inventory preview image is disabled.", getFolder());
             return;
         }
-        if (ready && version.equals(readVersion())) return;
+        // folders from before the models were kept are downloaded again once
+        if (ready && version.equals(readVersion()) && hasModels()) return;
 
         Thread thread = new Thread(() -> download(version), "AxInventoryRestore-TextureDownload");
         thread.setDaemon(true);
@@ -88,6 +94,30 @@ public final class TextureManager {
                 return Optional.empty();
             }
         }).orElse(null);
+    }
+
+    // the icon of an item that has no texture with its own name (beds, chests, heads, ...), see ModelResolver
+    @Nullable
+    public static BufferedImage modelIcon(String key) {
+        if (!ready) return null;
+        return models.icon(key);
+    }
+
+    // json file in the textures folder, path without extension like "items/white_bed"; null if it does not exist
+    @Nullable
+    static JsonObject json(String path) {
+        File file = new File(getFolder(), path + ".json");
+        if (!file.isFile()) return null;
+        try {
+            return JsonParser.parseString(Files.readString(file.toPath(), StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch (Exception exception) {
+            return null;
+        }
+    }
+
+    private static boolean hasModels() {
+        String[] files = new File(getFolder(), "items").list();
+        return files != null && files.length > 0;
     }
 
     private static boolean hasTextures() {
@@ -132,8 +162,15 @@ public final class TextureManager {
                 Enumeration<? extends ZipEntry> entries = zip.entries();
                 while (entries.hasMoreElements()) {
                     ZipEntry entry = entries.nextElement();
-                    if (!TEXTURE.matcher(entry.getName()).matches()) continue;
-                    Path target = getFolder().toPath().resolve(entry.getName().substring("assets/minecraft/textures/".length()));
+                    String relative;
+                    if (TEXTURE.matcher(entry.getName()).matches()) {
+                        relative = entry.getName().substring("assets/minecraft/textures/".length());
+                    } else if (DEFINITION.matcher(entry.getName()).matches()) {
+                        relative = entry.getName().substring("assets/minecraft/".length());
+                    } else {
+                        continue;
+                    }
+                    Path target = getFolder().toPath().resolve(relative);
                     Files.createDirectories(target.getParent());
                     try (InputStream in = zip.getInputStream(entry)) {
                         Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
@@ -149,8 +186,9 @@ public final class TextureManager {
 
             Files.writeString(new File(getFolder(), "version.txt").toPath(), version, StandardCharsets.UTF_8);
             cache.clear();
+            models = new ModelResolver(TextureManager::get, TextureManager::json);
             ready = hasTextures();
-            log.info("Downloaded {} item and block textures for the discord inventory preview.", extracted);
+            log.info("Downloaded {} item textures and models for the discord inventory preview.", extracted);
         } catch (Exception exception) {
             log.warn("Failed to download item textures, the inventory preview image is disabled until the next restart.", exception);
         } finally {

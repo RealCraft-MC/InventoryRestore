@@ -115,6 +115,8 @@ public final class InventoryRenderer {
         }
 
         if (icon == null) icon = find(ALIASES.getOrDefault(key, key));
+        // no texture with the name of the item: follow the item model like the client does (beds, chests, heads, ...)
+        if (icon == null) icon = TextureManager.modelIcon(key);
         if (icon == null) return missing();
         if (FOLIAGE_ITEMS.contains(key) || (key.endsWith("_leaves") && !key.contains("cherry") && !key.contains("azalea"))) {
             icon = tint(icon, FOLIAGE);
